@@ -25,7 +25,7 @@ export function AmountSheet({
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const itemName = preset ? preset.name : name.trim();
+    const itemName = preset ? preset.name.trim() || "名前なし" : name.trim();
     if (!itemName) {
       setError("品名を入れてください");
       return;

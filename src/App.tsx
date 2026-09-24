@@ -39,12 +39,23 @@ export function App() {
     setSaveFailed(!saveData(data));
   }, [data]);
 
-  // 日付をまたいで開きっぱなしでも「今日」の集計がずれないよう、表に戻ったときに時刻を取り直す
+  // 日付をまたいでも「今日」の集計がずれないよう、表に戻ったとき・次の午前0時に時刻を取り直す
   useEffect(() => {
     const refresh = () => document.visibilityState === "visible" && setNow(new Date());
     document.addEventListener("visibilitychange", refresh);
-    return () => document.removeEventListener("visibilitychange", refresh);
+    window.addEventListener("pageshow", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("pageshow", refresh);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
+  useEffect(() => {
+    const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const timer = window.setTimeout(() => setNow(new Date()), next.getTime() - now.getTime() + 1000);
+    return () => window.clearTimeout(timer);
+  }, [now]);
 
   useEffect(() => {
     document.documentElement.dataset.mode = tab;
@@ -94,7 +105,7 @@ export function App() {
       totals: t,
       pace: annualPace(data.entries, mode, now),
       days: daysSinceFirst(data.entries, mode, now),
-      balance: balance(data.entries),
+      balance: balance(data.entries, now),
       equivalent: pickEquivalent(t.month),
     };
   }, [data.entries, mode, now]);

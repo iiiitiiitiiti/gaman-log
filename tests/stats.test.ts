@@ -79,7 +79,19 @@ describe("annualPace", () => {
 
 describe("balance", () => {
   it("がまん − むだづかい", () => {
-    expect(balance([])).toBe(0);
-    expect(balance([entry("saved", 1000, 0), entry("wasted", 1500, 0)])).toBe(-500);
+    const now = new Date();
+    expect(balance([], now)).toBe(0);
+    expect(balance([entry("saved", 1000, 0), entry("wasted", 1500, 0)], now)).toBe(-500);
+  });
+});
+
+describe("未来の日時の記録", () => {
+  it("どの集計にも入れない", () => {
+    const now = new Date(2026, 8, 24, 20);
+    const list = [entry("saved", 700, at(2026, 9, 18)), entry("saved", 10000, at(2027, 1, 1))];
+    expect(totals(list, "saved", now)).toEqual({ today: 0, week: 0, month: 700, all: 700 });
+    expect(annualPace(list, "saved", now)).toBe(36500);
+    expect(balance(list, now)).toBe(700);
+    expect(daysSinceFirst([entry("wasted", 1, at(2027, 1, 1))], "wasted", now)).toBe(0);
   });
 });

@@ -20,7 +20,12 @@ export function RecordPop({ info, onClose, onUndo }: { info: PopInfo; onClose: (
 
   useEffect(() => {
     const timer = window.setTimeout(onClose, AUTO_CLOSE_MS);
-    return () => window.clearTimeout(timer);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [info, onClose]);
 
   // 降らせるコインの位置・速さは記録ごとに1回だけ決める（再描画で飛ばない）

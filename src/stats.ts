@@ -27,6 +27,8 @@ function calendarDaysBetween(from: Date, to: Date): number {
   return Math.round((b - a) / DAY);
 }
 
+/** 端末の時計ずれなどで未来の日時になった記録は、どの集計にも入れない */
+const notFuture = (entries: Entry[], now: Date) => entries.filter((e) => e.createdAt <= now.getTime());
 const ofKind = (entries: Entry[], kind: Kind) => entries.filter((e) => e.kind === kind);
 const sum = (entries: Entry[]) => entries.reduce((acc, e) => acc + e.price, 0);
 
@@ -38,7 +40,7 @@ export interface Totals {
 }
 
 export function totals(entries: Entry[], kind: Kind, now: Date): Totals {
-  const list = ofKind(entries, kind);
+  const list = ofKind(notFuture(entries, now), kind);
   const since = (t: Date) => sum(list.filter((e) => e.createdAt >= t.getTime()));
   return {
     today: since(startOfDay(now)),
@@ -50,7 +52,7 @@ export function totals(entries: Entry[], kind: Kind, now: Date): Totals {
 
 /** 最初の記録日を1日目とした今日の日数。記録が無ければ 0 */
 export function daysSinceFirst(entries: Entry[], kind: Kind, now: Date): number {
-  const list = ofKind(entries, kind);
+  const list = ofKind(notFuture(entries, now), kind);
   if (list.length === 0) return 0;
   const first = Math.min(...list.map((e) => e.createdAt));
   return Math.max(1, calendarDaysBetween(new Date(first), now) + 1);
@@ -67,11 +69,12 @@ export function annualPace(entries: Entry[], kind: Kind, now: Date): number | nu
   const windowDays = Math.min(PACE_WINDOW_DAYS, elapsed);
   const today = startOfDay(now);
   const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (windowDays - 1));
-  const recent = ofKind(entries, kind).filter((e) => e.createdAt >= from.getTime());
+  const recent = ofKind(notFuture(entries, now), kind).filter((e) => e.createdAt >= from.getTime());
   return Math.round((sum(recent) / windowDays) * 365);
 }
 
 /** がまんした合計 − むだづかいの合計 */
-export function balance(entries: Entry[]): number {
-  return sum(ofKind(entries, "saved")) - sum(ofKind(entries, "wasted"));
+export function balance(entries: Entry[], now: Date): number {
+  const list = notFuture(entries, now);
+  return sum(ofKind(list, "saved")) - sum(ofKind(list, "wasted"));
 }

@@ -37,10 +37,11 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
       try {
         await navigator.share({ files: [file], title: name });
         setMessage("書き出しました");
+        return;
       } catch (e) {
-        if ((e as DOMException).name !== "AbortError") setMessage("共有できませんでした。「コピー」を試してください");
+        // 自分で閉じたときは何もしない。それ以外の失敗はダウンロードで保存し直す
+        if ((e as DOMException).name === "AbortError") return;
       }
-      return;
     }
     const url = URL.createObjectURL(file);
     const a = document.createElement("a");
@@ -48,7 +49,7 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
     a.download = name;
     a.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setMessage("書き出しました");
+    setMessage("書き出しました。保存されていなければ「コピー」を試してください");
   };
 
   const copyData = async () => {

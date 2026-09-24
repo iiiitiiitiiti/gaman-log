@@ -68,8 +68,24 @@ function toPreset(v: unknown): Preset | null {
   return { id, kind, name, emoji: typeof emoji === "string" ? emoji : "", price };
 }
 
-/** 保存データや書き出しファイルを検証して読む。形が違えば null（壊れた項目は1件ずつ捨てる） */
-export function parseData(raw: string): AppData | null {
+/** 同じ id が重なっていたら最初の1件だけ残す（読み込みの統合で黙って上書きし合わないように） */
+function uniqueById<T extends { id: string }>(list: T[]): T[] {
+  const seen = new Set<string>();
+  return list.filter((x) => {
+    if (seen.has(x.id)) return false;
+    seen.add(x.id);
+    return true;
+  });
+}
+
+export interface ParseResult {
+  data: AppData;
+  /** 壊れていた・id が重なっていたために捨てた項目の数 */
+  dropped: number;
+}
+
+/** 保存データや書き出しファイルを検証して読む。形が違えば null（壊れた項目・重なった id は1件ずつ捨てる） */
+export function parseDataDetailed(raw: string): ParseResult | null {
   let json: unknown;
   try {
     json = JSON.parse(raw);
@@ -77,11 +93,22 @@ export function parseData(raw: string): AppData | null {
     return null;
   }
   if (!isObj(json) || json.version !== 1 || !Array.isArray(json.entries) || !Array.isArray(json.presets)) return null;
-  return {
-    version: 1,
-    entries: json.entries.map(toEntry).filter((e): e is Entry => e !== null),
-    presets: json.presets.map(toPreset).filter((p): p is Preset => p !== null),
-  };
+  const entries = uniqueById(json.entries.map(toEntry).filter((e): e is Entry => e !== null));
+  const presets = uniqueById(json.presets.map(toPreset).filter((p): p is Preset => p !== null));
+  const dropped = json.entries.length - entries.length + (json.presets.length - presets.length);
+  return { data: { version: 1, entries, presets }, dropped };
+}
+
+export function parseData(raw: string): AppData | null {
+  return parseDataDetailed(raw)?.data ?? null;
+}
+
+function backupRaw(raw: string, storage: Storage) {
+  try {
+    storage.setItem(BACKUP_KEY, raw);
+  } catch {
+    // 退避できなくても起動は続ける
+  }
 }
 
 export function loadData(storage: Storage = localStorage): AppData {
@@ -92,14 +119,10 @@ export function loadData(storage: Storage = localStorage): AppData {
     return emptyData();
   }
   if (raw === null) return emptyData();
-  const parsed = parseData(raw);
-  if (parsed) return parsed;
-  try {
-    storage.setItem(BACKUP_KEY, raw);
-  } catch {
-    // 退避できなくても起動は続ける
-  }
-  return emptyData();
+  const parsed = parseDataDetailed(raw);
+  // 全体が読めない・一部を捨てた、のどちらでも元データを残す（次の保存で捨てた分が消えるため）
+  if (!parsed || parsed.dropped > 0) backupRaw(raw, storage);
+  return parsed ? parsed.data : emptyData();
 }
 
 /** 保存に失敗したら false（プライベートモード・容量不足） */
