@@ -12,7 +12,17 @@ function formatWhen(ms: number): string {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]}) ${hh}:${mm}`;
 }
 
-export function History({ kind, entries, onDelete }: { kind: Kind; entries: Entry[]; onDelete: (id: string) => void }) {
+export function History({
+  kind,
+  entries,
+  onDelete,
+  onEdit,
+}: {
+  kind: Kind;
+  entries: Entry[];
+  onDelete: (id: string) => void;
+  onEdit: (entry: Entry) => void;
+}) {
   const [limit, setLimit] = useState(PAGE);
   const [confirming, setConfirming] = useState<string | null>(null);
   const list = entries.filter((e) => e.kind === kind).sort((a, b) => b.createdAt - a.createdAt);
@@ -22,20 +32,23 @@ export function History({ kind, entries, onDelete }: { kind: Kind; entries: Entr
       <h2 id="history-title" className="section-title">
         履歴
       </h2>
+      {list.length > 0 && <p className="history-hint">タップすると、品名・金額・日時を直せます。</p>}
       {list.length === 0 ? (
         <p className="history-empty">{kind === "saved" ? "がまんしたら、上のボタンをタップ。" : "むだづかいはまだありません。"}</p>
       ) : (
         <ul className="history">
           {list.slice(0, limit).map((e) => (
             <li key={e.id} className="history-row">
-              <span className="history-emoji" aria-hidden="true">
-                {e.emoji || "💰"}
-              </span>
-              <span className="history-main">
-                <span className="history-name">{e.name}</span>
-                <span className="history-when">{formatWhen(e.createdAt)}</span>
-              </span>
-              <span className="history-price">{yen(e.price)}</span>
+              <button type="button" className="history-edit" onClick={() => onEdit(e)} aria-label={`${e.name}の記録を直す`}>
+                <span className="history-emoji" aria-hidden="true">
+                  {e.emoji || "💰"}
+                </span>
+                <span className="history-main">
+                  <span className="history-name">{e.name}</span>
+                  <span className="history-when">{formatWhen(e.createdAt)}</span>
+                </span>
+                <span className="history-price">{yen(e.price)}</span>
+              </button>
               {confirming === e.id ? (
                 <span className="history-confirm">
                   <button type="button" className="mini mini--danger" onClick={() => onDelete(e.id)}>
