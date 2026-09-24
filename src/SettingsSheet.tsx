@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Sheet } from "./Sheet";
 import { DEFAULT_PRESETS, mergeData, newId, parseData, parsePrice, serializeForExport } from "./store";
 import type { AppData, Kind, Preset } from "./types";
@@ -155,6 +155,11 @@ function PresetRow({ preset, onUpdate, onRemove }: { preset: Preset; onUpdate: (
   // 入力途中の値（空・書きかけ）を保てるよう、金額は文字列で持つ
   const [price, setPrice] = useState(preset.price === null ? "" : String(preset.price));
   const [invalid, setInvalid] = useState(false);
+  // 「最初の状態に戻す」や読み込みで同じ id のまま金額が変わったら、入力欄も合わせる
+  useEffect(() => {
+    setPrice(preset.price === null ? "" : String(preset.price));
+    setInvalid(false);
+  }, [preset.price]);
 
   const commitPrice = () => {
     if (price.trim() === "") {
@@ -169,7 +174,7 @@ function PresetRow({ preset, onUpdate, onRemove }: { preset: Preset; onUpdate: (
 
   return (
     <li className="preset-edit-row">
-      <input className="preset-edit-emoji" value={preset.emoji} onChange={(e) => onUpdate({ emoji: e.target.value })} aria-label="絵文字" maxLength={8} />
+      <input className="preset-edit-emoji" value={preset.emoji} onChange={(e) => onUpdate({ emoji: e.target.value })} aria-label="絵文字" maxLength={16} />
       <input className="preset-edit-name" value={preset.name} onChange={(e) => onUpdate({ name: e.target.value })} aria-label="品名" maxLength={40} />
       <input
         className={`preset-edit-price${invalid ? " is-invalid" : ""}`}

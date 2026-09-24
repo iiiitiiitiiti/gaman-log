@@ -1,6 +1,8 @@
 import type { AppData, Entry, Kind, Preset } from "./types";
 
 export const STORAGE_KEY = "gaman-log:v1";
+/** 読めなかった保存データの退避先（次の保存で上書きして消さないため） */
+export const BACKUP_KEY = "gaman-log:unreadable-backup";
 export const MAX_PRICE = 10_000_000;
 
 export const DEFAULT_PRESETS: Preset[] = [
@@ -90,7 +92,14 @@ export function loadData(storage: Storage = localStorage): AppData {
     return emptyData();
   }
   if (raw === null) return emptyData();
-  return parseData(raw) ?? emptyData();
+  const parsed = parseData(raw);
+  if (parsed) return parsed;
+  try {
+    storage.setItem(BACKUP_KEY, raw);
+  } catch {
+    // 退避できなくても起動は続ける
+  }
+  return emptyData();
 }
 
 /** 保存に失敗したら false（プライベートモード・容量不足） */
