@@ -8,8 +8,8 @@ export interface Equivalent {
 
 export const EQUIVALENTS: Equivalent[] = [
   { emoji: "🍬", name: "駄菓子", unit: "個", price: 30 },
-  { emoji: "🍦", name: "アイス", unit: "本", price: 150 },
-  { emoji: "🍙", name: "おにぎり", unit: "個", price: 180 },
+  { emoji: "🍦", name: "アイス", unit: "本", price: 100 },
+  { emoji: "🍙", name: "おにぎり", unit: "個", price: 150 },
   { emoji: "📖", name: "マンガ", unit: "冊", price: 550 },
   { emoji: "🍜", name: "ラーメン", unit: "杯", price: 1000 },
   { emoji: "🎬", name: "映画", unit: "回", price: 2000 },

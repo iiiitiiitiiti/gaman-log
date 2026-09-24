@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Sheet } from "./Sheet";
 import { DEFAULT_PRESETS, mergeData, newId, parseData, parsePrice, serializeForExport } from "./store";
 import type { AppData, Kind, Preset } from "./types";
 
@@ -11,31 +10,22 @@ function exportFileName(): string {
   return `gaman-log-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
 }
 
-export function SettingsSheet({
-  data,
-  mode,
-  onChange,
-  onClose,
-}: {
-  data: AppData;
-  mode: Kind;
-  onChange: (data: AppData) => void;
-  onClose: () => void;
-}) {
+const KINDS: Kind[] = ["saved", "wasted"];
+
+export function SettingsView({ data, onChange }: { data: AppData; onChange: (data: AppData) => void }) {
   const [message, setMessage] = useState("");
   const [pendingImport, setPendingImport] = useState<AppData | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const presets = data.presets.filter((p) => p.kind === mode);
 
   const updatePreset = (id: string, patch: Partial<Preset>) =>
     onChange({ ...data, presets: data.presets.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
   const removePreset = (id: string) => onChange({ ...data, presets: data.presets.filter((p) => p.id !== id) });
-  const addPreset = () =>
-    onChange({ ...data, presets: [...data.presets, { id: newId(), kind: mode, emoji: "⭐", name: "新しいボタン", price: null }] });
-  const resetPresets = () =>
+  const addPreset = (kind: Kind) =>
+    onChange({ ...data, presets: [...data.presets, { id: newId(), kind, emoji: "⭐", name: "新しいボタン", price: null }] });
+  const resetPresets = (kind: Kind) =>
     onChange({
       ...data,
-      presets: [...data.presets.filter((p) => p.kind !== mode), ...DEFAULT_PRESETS.filter((p) => p.kind === mode).map((p) => ({ ...p }))],
+      presets: [...data.presets.filter((p) => p.kind !== kind), ...DEFAULT_PRESETS.filter((p) => p.kind === kind).map((p) => ({ ...p }))],
     });
 
   const exportData = async () => {
@@ -90,24 +80,29 @@ export function SettingsSheet({
   };
 
   return (
-    <Sheet title="設定" onClose={onClose}>
-      <section className="settings-block">
-        <h3>{KIND_LABEL[mode]}の定番ボタン</h3>
-        <p className="settings-hint">金額を空にすると、押したときに毎回金額を聞きます。</p>
-        <ul className="preset-edit">
-          {presets.map((p) => (
-            <PresetRow key={p.id} preset={p} onUpdate={(patch) => updatePreset(p.id, patch)} onRemove={() => removePreset(p.id)} />
-          ))}
-        </ul>
-        <div className="form-actions">
-          <button type="button" className="button button--ghost" onClick={resetPresets}>
-            最初の状態に戻す
-          </button>
-          <button type="button" className="button" onClick={addPreset}>
-            ボタンを追加
-          </button>
-        </div>
-      </section>
+    <>
+      <h2 className="section-title settings-title">設定</h2>
+      {KINDS.map((kind) => (
+        <section key={kind} className={`settings-block settings-block--${kind}`}>
+          <h3>{KIND_LABEL[kind]}の定番ボタン</h3>
+          <p className="settings-hint">金額を空にすると、押したときに毎回金額を聞きます。</p>
+          <ul className="preset-edit">
+            {data.presets
+              .filter((p) => p.kind === kind)
+              .map((p) => (
+                <PresetRow key={p.id} preset={p} onUpdate={(patch) => updatePreset(p.id, patch)} onRemove={() => removePreset(p.id)} />
+              ))}
+          </ul>
+          <div className="form-actions">
+            <button type="button" className="button button--ghost" onClick={() => resetPresets(kind)}>
+              最初の状態に戻す
+            </button>
+            <button type="button" className="button" onClick={() => addPreset(kind)}>
+              ボタンを追加
+            </button>
+          </div>
+        </section>
+      ))}
 
       <section className="settings-block">
         <h3>データの保管と引っ越し</h3>
@@ -129,7 +124,8 @@ export function SettingsSheet({
         {pendingImport && (
           <div className="confirm" role="alert">
             <p>
-              記録 {pendingImport.entries.length}件・定番ボタン {pendingImport.presets.length}件を、いまのデータに足します。同じ記録は読み込んだほうで上書きします。
+              記録 {pendingImport.entries.length}件・定番ボタン {pendingImport.presets.length}
+              件を、いまのデータに足します。同じ記録は読み込んだほうで上書きします。
             </p>
             <div className="form-actions">
               <button type="button" className="button button--ghost" onClick={() => setPendingImport(null)}>
@@ -147,7 +143,7 @@ export function SettingsSheet({
           </p>
         )}
       </section>
-    </Sheet>
+    </>
   );
 }
 
@@ -174,15 +170,27 @@ function PresetRow({ preset, onUpdate, onRemove }: { preset: Preset; onUpdate: (
 
   return (
     <li className="preset-edit-row">
-      <input className="preset-edit-emoji" value={preset.emoji} onChange={(e) => onUpdate({ emoji: e.target.value })} aria-label="絵文字" maxLength={16} />
-      <input className="preset-edit-name" value={preset.name} onChange={(e) => onUpdate({ name: e.target.value })} aria-label="品名" maxLength={40} />
+      <input
+        className="preset-edit-emoji"
+        value={preset.emoji}
+        onChange={(e) => onUpdate({ emoji: e.target.value })}
+        aria-label="絵文字"
+        maxLength={16}
+      />
+      <input
+        className="preset-edit-name"
+        value={preset.name}
+        onChange={(e) => onUpdate({ name: e.target.value })}
+        aria-label="品名"
+        maxLength={40}
+      />
       <input
         className={`preset-edit-price${invalid ? " is-invalid" : ""}`}
         value={price}
         onChange={(e) => setPrice(e.target.value)}
         onBlur={commitPrice}
         inputMode="numeric"
-        placeholder="毎回"
+        placeholder="毎回聞く"
         aria-label="金額（円）"
         aria-invalid={invalid}
       />

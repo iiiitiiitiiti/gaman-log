@@ -4,6 +4,8 @@
  *   saved  … 貯金箱の世界。レモン色の地にステッカー（太い縁＋ずらし影）、回る後光、極太の金額
  *   wasted … 警報の世界。深い紫の地に走査線、警告テープ、ドット文字の電光掲示板
  * 色・形はすべて .app--saved / .app--wasted のトークンで決め、部品側は var() だけを見る。
+ * 設定タブは .app--saved を土台に .app--settings で地の色だけ変える。
+ * 演出は端末の「視差効果を減らす」設定に関わらず出す（ユーザー指示 2026-09-24）。
  */
 
 :root {
@@ -22,6 +24,22 @@ html:not([data-mode]) {
 html[data-mode="wasted"] {
   background: #2b0a3d;
   color-scheme: dark;
+}
+html[data-mode="settings"] {
+  background: #9be3ff;
+  color-scheme: light;
+}
+
+/*
+ * 画面全体は動かさず、中身だけを .scroller の中でスクロールさせる。
+ * iOS はページ全体を引っ張ると position: fixed の要素ごと動くため、タブを下に固定しきれない。
+ */
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 * {
@@ -103,11 +121,27 @@ button {
 
 .app {
   position: relative;
-  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   color: var(--text);
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 24px);
+  overflow: hidden;
+}
+.app--settings {
+  background:
+    radial-gradient(circle, rgb(27 31 94 / 0.13) 1.6px, transparent 1.8px) 0 0 / 18px 18px,
+    #9be3ff;
+}
+.scroller {
+  position: relative;
+  flex: 1;
+  min-height: 0;
   overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: 32px;
 }
 
 .content,
@@ -538,9 +572,20 @@ button {
   border-radius: 999px;
   font-weight: 800;
 }
+.preset--other {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  justify-content: center;
+  gap: 12px;
+  min-height: 72px;
+}
+.preset--other .preset-emoji {
+  font-size: 2rem;
+}
 .app--saved .preset--other {
   background: var(--paper) !important;
   border-style: dashed;
+  transform: rotate(-0.6deg) !important;
 }
 
 .app--wasted .preset {
@@ -747,14 +792,12 @@ button {
 /* ---------- タブ ---------- */
 
 .tabbar {
-  position: fixed;
+  position: relative;
   z-index: 20;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: none;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   padding: 10px max(16px, env(safe-area-inset-left, 0px)) calc(10px + env(safe-area-inset-bottom, 0px));
   border-top: 3px solid var(--ink);
   background: var(--surface);
@@ -764,26 +807,36 @@ button {
 }
 .tab {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 56px;
+  gap: 0;
+  height: 60px;
+  padding: 0 4px;
   font-family: var(--font-display);
-  font-size: clamp(0.95rem, 4.4vw, 1.1rem);
+  font-size: clamp(0.78rem, 3.6vw, 0.95rem);
+  line-height: 1.2;
   white-space: nowrap;
   border: 3px solid transparent;
-  border-radius: 999px;
+  border-radius: 18px;
   background: transparent;
   opacity: 0.6;
 }
 .tab span {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
+  line-height: 1.1;
 }
 .tab[aria-current="page"] {
   opacity: 1;
 }
 .tab--saved[aria-current="page"] {
   background: #ffe14d;
+  color: #1b1f5e;
+  border-color: #1b1f5e;
+  box-shadow: 3px 3px 0 #1b1f5e;
+}
+.tab--settings[aria-current="page"] {
+  background: #9be3ff;
   color: #1b1f5e;
   border-color: #1b1f5e;
   box-shadow: 3px 3px 0 #1b1f5e;
@@ -813,6 +866,13 @@ button {
   background:
     radial-gradient(circle, rgb(27 31 94 / 0.2) 2px, transparent 2.4px) 0 0 / 22px 22px,
     #ffe14d;
+  border-left: 14px solid #1b1f5e;
+  border-right: 14px solid #1b1f5e;
+}
+.wipe--settings {
+  background:
+    radial-gradient(circle, rgb(27 31 94 / 0.2) 2px, transparent 2.4px) 0 0 / 22px 22px,
+    #9be3ff;
   border-left: 14px solid #1b1f5e;
   border-right: 14px solid #1b1f5e;
 }
@@ -1007,10 +1067,38 @@ button {
   color: var(--caution);
 }
 
-.settings-block + .settings-block {
-  margin-top: 26px;
-  padding-top: 20px;
-  border-top: 2px dashed currentColor;
+.settings-title {
+  margin-top: 18px;
+}
+.settings-block {
+  margin-top: 22px;
+  padding: 16px 14px;
+  background: var(--paper);
+  border: var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.settings-block--wasted {
+  background: #2b0a3d;
+  color: #fff3f6;
+  box-shadow: 5px 5px 0 #ff2e4d;
+  border-radius: 6px;
+}
+.settings-block--wasted h3 {
+  color: #ffd60a;
+}
+.settings-block--wasted .settings-hint {
+  color: #c9a9d6;
+}
+.settings-block--wasted .button {
+  background: #ffd60a;
+  border-radius: 4px;
+  box-shadow: 3px 3px 0 #ff2e4d;
+}
+.settings-block--wasted .button--ghost {
+  background: #1a0526;
+  color: #fff3f6;
+  border-color: #ffd60a;
 }
 .settings-block h3 {
   margin: 0 0 4px;
@@ -1034,15 +1122,35 @@ button {
   padding: 0;
   list-style: none;
 }
+.preset-edit {
+  gap: 12px;
+}
+/* 狭い画面でも品名を読めるよう、品名と金額を2段に分ける */
 .preset-edit-row {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 88px auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "emoji name del"
+    "emoji price del";
   gap: 6px;
   align-items: center;
 }
 .preset-edit .preset-edit-emoji {
+  grid-area: emoji;
+  align-self: stretch;
+  height: auto;
   padding: 4px;
+  font-size: 1.6rem;
   text-align: center;
+}
+.preset-edit .preset-edit-name {
+  grid-area: name;
+}
+.preset-edit .preset-edit-price {
+  grid-area: price;
+}
+.preset-edit-row .mini {
+  grid-area: del;
 }
 .preset-edit .is-invalid {
   border-color: #e0183a;
@@ -1168,18 +1276,5 @@ button {
   }
   100% {
     transform: translateX(110%) skewX(-12deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-  .coins,
-  .wipe {
-    display: none;
   }
 }
