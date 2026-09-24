@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { pickEquivalent, yen } from "./equivalents";
-import type { Entry } from "./types";
+import type { Entry, Equivalent } from "./types";
 
 export interface PopInfo {
   entry: Entry;
@@ -8,15 +8,29 @@ export interface PopInfo {
   total: number;
   /** 年間ペース（まだ出せないときは null） */
   pace: number | null;
+  /** この記録で目標に届いたら、その目標名 */
+  goalReached?: string;
+  /** この記録で月の上限を超えたら、超えた金額 */
+  overLimit?: number;
 }
 
 const AUTO_CLOSE_MS = 5000;
 const COINS = 18;
 
-export function RecordPop({ info, onClose, onUndo }: { info: PopInfo; onClose: () => void; onUndo: (id: string) => void }) {
+export function RecordPop({
+  info,
+  table,
+  onClose,
+  onUndo,
+}: {
+  info: PopInfo;
+  table: Equivalent[];
+  onClose: () => void;
+  onUndo: (id: string) => void;
+}) {
   const { entry, total, pace } = info;
   const saved = entry.kind === "saved";
-  const eq = pickEquivalent(total);
+  const eq = pickEquivalent(total, table);
 
   useEffect(() => {
     const timer = window.setTimeout(onClose, AUTO_CLOSE_MS);
@@ -81,6 +95,8 @@ export function RecordPop({ info, onClose, onUndo }: { info: PopInfo; onClose: (
           {yen(entry.price)}
         </p>
         <p className="pop-line">{line}</p>
+        {info.goalReached && <p className="pop-extra pop-extra--goal">🎉 目標「{info.goalReached}」達成！</p>}
+        {info.overLimit !== undefined && <p className="pop-extra pop-extra--over">🚨 今月の上限を {yen(info.overLimit)} 超えました</p>}
         <div className="pop-actions">
           <button type="button" className="button button--ghost" onClick={() => onUndo(entry.id)}>
             取り消す

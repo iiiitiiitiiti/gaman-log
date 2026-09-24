@@ -1,4 +1,4 @@
-import type { AppData, Entry, Kind, Preset } from "./types";
+import type { AppData, Entry, Equivalent, Goal, Kind, Preset } from "./types";
 
 export const STORAGE_KEY = "gaman-log:v1";
 /** 読めなかった保存データの退避先（次の保存で上書きして消さないため） */
@@ -68,6 +68,38 @@ function toPreset(v: unknown): Preset | null {
   return { id, kind, name, emoji: typeof emoji === "string" ? emoji : "", price };
 }
 
+function toGoal(v: unknown): Goal | null {
+  if (!isObj(v)) return null;
+  const { name, emoji, price, startAt } = v;
+  if (typeof name !== "string" || !isValidPrice(price) || typeof startAt !== "number" || !Number.isFinite(startAt)) return null;
+  return { name, emoji: typeof emoji === "string" ? emoji : "", price, startAt };
+}
+
+function toEquivalent(v: unknown): Equivalent | null {
+  if (!isObj(v)) return null;
+  const { name, emoji, unit, price } = v;
+  if (typeof name !== "string" || !isValidPrice(price)) return null;
+  return { name, emoji: typeof emoji === "string" ? emoji : "", unit: typeof unit === "string" ? unit : "", price };
+}
+
+/** 後から足した省略可能な項目を読む。形が違う項目は無かったことにする */
+function readOptional(json: Record<string, unknown>): Pick<AppData, "goal" | "wasteLimit" | "lastExportAt" | "equivalents"> {
+  const out: Pick<AppData, "goal" | "wasteLimit" | "lastExportAt" | "equivalents"> = {};
+  if (json.goal === null) out.goal = null;
+  else if (json.goal !== undefined) {
+    const goal = toGoal(json.goal);
+    if (goal) out.goal = goal;
+  }
+  if (json.wasteLimit === null) out.wasteLimit = null;
+  else if (isValidPrice(json.wasteLimit)) out.wasteLimit = json.wasteLimit;
+  if (typeof json.lastExportAt === "number" && Number.isFinite(json.lastExportAt)) out.lastExportAt = json.lastExportAt;
+  if (Array.isArray(json.equivalents)) {
+    const list = json.equivalents.map(toEquivalent).filter((e): e is Equivalent => e !== null);
+    if (list.length > 0) out.equivalents = list;
+  }
+  return out;
+}
+
 /** 同じ id が重なっていたら最初の1件だけ残す（読み込みの統合で黙って上書きし合わないように） */
 function uniqueById<T extends { id: string }>(list: T[]): T[] {
   const seen = new Set<string>();
@@ -96,7 +128,7 @@ export function parseDataDetailed(raw: string): ParseResult | null {
   const entries = uniqueById(json.entries.map(toEntry).filter((e): e is Entry => e !== null));
   const presets = uniqueById(json.presets.map(toPreset).filter((p): p is Preset => p !== null));
   const dropped = json.entries.length - entries.length + (json.presets.length - presets.length);
-  return { data: { version: 1, entries, presets }, dropped };
+  return { data: { version: 1, entries, presets, ...readOptional(json) }, dropped };
 }
 
 export function parseData(raw: string): AppData | null {
@@ -146,9 +178,18 @@ export function mergeData(current: AppData, incoming: AppData): AppData {
     for (const x of b) map.set(x.id, x);
     return [...map.values()];
   };
-  return {
+  // 目標・上限・換算表は読み込んだファイルに値があればそちらを採る。
+  // null（目標を外した・上限なし）は「指定なし」とみなし、手元の設定を消さない
+  const pick = <K extends "goal" | "wasteLimit" | "equivalents">(key: K) => incoming[key] ?? current[key];
+  const lastExportAt = Math.max(current.lastExportAt ?? 0, incoming.lastExportAt ?? 0);
+  const merged: AppData = {
     version: 1,
     entries: mergeById(current.entries, incoming.entries).sort((x, y) => x.createdAt - y.createdAt),
     presets: mergeById(current.presets, incoming.presets),
   };
+  if (pick("goal") !== undefined) merged.goal = pick("goal");
+  if (pick("wasteLimit") !== undefined) merged.wasteLimit = pick("wasteLimit");
+  if (pick("equivalents") !== undefined) merged.equivalents = pick("equivalents");
+  if (lastExportAt > 0) merged.lastExportAt = lastExportAt;
+  return merged;
 }

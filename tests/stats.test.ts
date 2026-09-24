@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { annualPace, balance, daysSinceFirst, startOfWeek, totals } from "../src/stats";
+import { annualPace, balance, daysSinceFirst, exportDue, goalProgress, monthRanking, recentMonths, saveStreak, startOfWeek, totals } from "../src/stats";
 import type { Entry, Kind } from "../src/types";
 
 let seq = 0;
@@ -93,5 +93,77 @@ describe("未来の日時の記録", () => {
     expect(annualPace(list, "saved", now)).toBe(36500);
     expect(balance(list, now)).toBe(700);
     expect(daysSinceFirst([entry("wasted", 1, at(2027, 1, 1))], "wasted", now)).toBe(0);
+  });
+});
+
+describe("goalProgress", () => {
+  it("目標を決めた日からのがまん額だけ数える", () => {
+    const now = new Date(2026, 8, 24, 20);
+    const goal = { name: "旅行", emoji: "✈️", price: 10000, startAt: at(2026, 9, 20, 0) };
+    const list = [entry("saved", 500, at(2026, 9, 19)), entry("saved", 300, at(2026, 9, 21)), entry("wasted", 999, at(2026, 9, 22))];
+    expect(goalProgress(list, goal, now)).toBe(300);
+  });
+});
+
+describe("saveStreak", () => {
+  const now = new Date(2026, 8, 24, 20);
+  it("記録ゼロなら0日", () => {
+    expect(saveStreak([], now)).toEqual({ days: 0, today: false });
+  });
+  it("今日まで続いていれば今日を含めて数える", () => {
+    const list = [entry("saved", 1, at(2026, 9, 24)), entry("saved", 1, at(2026, 9, 23)), entry("saved", 1, at(2026, 9, 22)), entry("saved", 1, at(2026, 9, 20))];
+    expect(saveStreak(list, now)).toEqual({ days: 3, today: true });
+  });
+  it("今日まだなら昨日までの連続を数え、今日は未記録と返す", () => {
+    const list = [entry("saved", 1, at(2026, 9, 23)), entry("saved", 1, at(2026, 9, 22)), entry("wasted", 1, at(2026, 9, 24))];
+    expect(saveStreak(list, now)).toEqual({ days: 2, today: false });
+  });
+  it("月をまたいでも続く", () => {
+    const n = new Date(2026, 9, 1, 9);
+    const list = [entry("saved", 1, at(2026, 10, 1, 8)), entry("saved", 1, at(2026, 9, 30))];
+    expect(saveStreak(list, n).days).toBe(2);
+  });
+});
+
+describe("recentMonths / monthRanking", () => {
+  const now = new Date(2026, 8, 24, 20);
+  const list = [
+    entry("saved", 100, at(2026, 9, 1)),
+    entry("saved", 200, at(2026, 8, 31)),
+    entry("wasted", 50, at(2026, 9, 2)),
+    entry("saved", 999, at(2027, 1, 1)),
+  ];
+  it("古い順に月ごとの合計（未来は除く）", () => {
+    expect(recentMonths(list, 2026, 8, 3, now)).toEqual([
+      { year: 2026, month: 6, saved: 0, wasted: 0 },
+      { year: 2026, month: 7, saved: 200, wasted: 0 },
+      { year: 2026, month: 8, saved: 100, wasted: 50 },
+    ]);
+  });
+  it("年をまたいで数える", () => {
+    expect(recentMonths([], 2027, 0, 2, now).map((m) => [m.year, m.month])).toEqual([[2026, 11], [2027, 0]]);
+  });
+  it("品名でまとめて金額の大きい順", () => {
+    const l = [
+      { ...entry("saved", 160, at(2026, 9, 1)), name: "水" },
+      { ...entry("saved", 160, at(2026, 9, 2)), name: "水" },
+      { ...entry("saved", 300, at(2026, 9, 3)), name: "菓子" },
+    ];
+    expect(monthRanking(l, "saved", 2026, 8, now).map((r) => [r.name, r.total, r.count])).toEqual([["水", 320, 2], ["菓子", 300, 1]]);
+  });
+});
+
+describe("exportDue", () => {
+  const now = new Date(2026, 8, 24, 20);
+  const base = { version: 1 as const, presets: [] };
+  it("記録が無ければ勧めない", () => {
+    expect(exportDue({ ...base, entries: [] }, now)).toBe(false);
+  });
+  it("書き出したことが無ければ最初の記録から30日で勧める", () => {
+    expect(exportDue({ ...base, entries: [entry("saved", 1, at(2026, 8, 26))] }, now)).toBe(false);
+    expect(exportDue({ ...base, entries: [entry("saved", 1, at(2026, 8, 25))] }, now)).toBe(true);
+  });
+  it("書き出してから30日たつまでは勧めない", () => {
+    expect(exportDue({ ...base, entries: [entry("saved", 1, at(2026, 1, 1))], lastExportAt: at(2026, 9, 1) }, now)).toBe(false);
   });
 });

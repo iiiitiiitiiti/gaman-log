@@ -1,10 +1,6 @@
-/** 金額を身近なモノに置き換えるための目安（値段はおおよそ） */
-export interface Equivalent {
-  emoji: string;
-  name: string;
-  unit: string;
-  price: number;
-}
+import type { Equivalent } from "./types";
+
+export type { Equivalent };
 
 export const EQUIVALENTS: Equivalent[] = [
   { emoji: "🍬", name: "駄菓子", unit: "個", price: 30 },
@@ -48,9 +44,10 @@ const MAX_COUNT = 10;
  * 2〜10個買えるモノを候補にし、金額から決まる番号で1つ選ぶ（同じ金額なら同じモノ、金額が変わると入れ替わる）。
  * 候補が無いとき（少額・高額）は、1個以上買える中でいちばん高いモノ。いちばん安いモノも買えなければ null
  */
-export function pickEquivalent(amount: number): EquivalentResult | null {
-  if (amount < EQUIVALENTS[0].price) return null;
-  const withCount = EQUIVALENTS.map((eq) => ({ ...eq, count: Math.floor(amount / eq.price) }));
+export function pickEquivalent(amount: number, table: Equivalent[] = EQUIVALENTS): EquivalentResult | null {
+  const list = table.filter((eq) => eq.price > 0).sort((a, b) => a.price - b.price);
+  if (list.length === 0 || amount < list[0].price) return null;
+  const withCount = list.map((eq) => ({ ...eq, count: Math.floor(amount / eq.price) }));
   const candidates = withCount.filter((eq) => eq.count >= MIN_COUNT && eq.count <= MAX_COUNT);
   if (candidates.length === 0) return withCount.filter((eq) => eq.count >= 1).at(-1) ?? null;
   const index = (Math.imul(amount, 2654435761) >>> 0) % candidates.length;

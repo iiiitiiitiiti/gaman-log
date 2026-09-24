@@ -115,3 +115,36 @@ describe("pickEquivalent", () => {
     expect(pickEquivalent(10_000_000)).toMatchObject({ name: "中古の軽自動車", count: 16 });
   });
 });
+
+describe("後から足した項目", () => {
+  it("目標・上限・換算表・書き出し日を読み書きでき、壊れた項目は無視する", () => {
+    const data: AppData = {
+      ...sample(),
+      goal: { name: "旅行", emoji: "✈️", price: 10000, startAt: 5 },
+      wasteLimit: 20000,
+      lastExportAt: 9,
+      equivalents: [{ emoji: "🍚", name: "牛丼", unit: "杯", price: 500 }],
+    };
+    expect(parseData(serializeForExport(data))).toEqual(data);
+    const broken = { ...sample(), goal: { name: "x", price: -1, startAt: 1 }, wasteLimit: "a", equivalents: [{ name: "x", price: 0 }] };
+    expect(parseData(JSON.stringify(broken))).toEqual(sample());
+  });
+  it("自分の換算表を使える", () => {
+    expect(pickEquivalent(1000, [{ emoji: "🍚", name: "牛丼", unit: "杯", price: 500 }])).toMatchObject({ name: "牛丼", count: 2 });
+    expect(pickEquivalent(1000, [])).toBeNull();
+  });
+  it("読み込みでは、ファイルにある目標・上限を採り、書き出し日は新しいほう", () => {
+    const current: AppData = { ...sample(), wasteLimit: 1000, lastExportAt: 50 };
+    const incoming: AppData = { ...sample(), goal: { name: "g", emoji: "", price: 100, startAt: 1 }, lastExportAt: 10 };
+    const merged = mergeData(current, incoming);
+    expect(merged.wasteLimit).toBe(1000);
+    expect(merged.goal?.name).toBe("g");
+    expect(merged.lastExportAt).toBe(50);
+  });
+  it("読み込むファイルの目標・上限が null でも、手元の設定は消さない", () => {
+    const current: AppData = { ...sample(), goal: { name: "g", emoji: "", price: 100, startAt: 1 }, wasteLimit: 1000 };
+    const merged = mergeData(current, { ...sample(), goal: null, wasteLimit: null });
+    expect(merged.goal?.name).toBe("g");
+    expect(merged.wasteLimit).toBe(1000);
+  });
+});
