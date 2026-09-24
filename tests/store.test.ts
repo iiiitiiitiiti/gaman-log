@@ -71,6 +71,7 @@ describe("pickEquivalent", () => {
     expect(pickEquivalent(0)).toBeNull();
     expect(pickEquivalent(29)).toBeNull();
     expect(pickEquivalent(30)).toMatchObject({ name: "駄菓子", count: 1 });
-    expect(pickEquivalent(4500)).toMatchObject({ name: "映画", count: 2 });
+    expect(pickEquivalent(300)).toMatchObject({ name: "菓子パン", count: 1 });
+    expect(pickEquivalent(4500)).toMatchObject({ name: "焼肉食べ放題", count: 1 });
   });
 });
