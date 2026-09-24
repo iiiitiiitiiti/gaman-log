@@ -14,6 +14,7 @@ export const EQUIVALENTS: Equivalent[] = [
   { emoji: "🥐", name: "菓子パン", unit: "個", price: 200 },
   { emoji: "🍟", name: "フライドポテト", unit: "個", price: 330 },
   { emoji: "☕", name: "カフェラテ", unit: "杯", price: 450 },
+  { emoji: "🍚", name: "牛丼", unit: "杯", price: 500 },
   { emoji: "📖", name: "マンガ", unit: "冊", price: 550 },
   { emoji: "🍔", name: "ハンバーガーセット", unit: "回", price: 750 },
   { emoji: "🍜", name: "ラーメン", unit: "杯", price: 1000 },
