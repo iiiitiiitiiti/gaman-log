@@ -67,11 +67,27 @@ describe("mergeData", () => {
 });
 
 describe("pickEquivalent", () => {
-  it("買える中でいちばん高いモノと個数", () => {
+  it("少額は1個でも買えるモノ、何も買えなければ null", () => {
     expect(pickEquivalent(0)).toBeNull();
     expect(pickEquivalent(29)).toBeNull();
     expect(pickEquivalent(30)).toMatchObject({ name: "駄菓子", count: 1 });
-    expect(pickEquivalent(300)).toMatchObject({ name: "菓子パン", count: 1 });
-    expect(pickEquivalent(4500)).toMatchObject({ name: "焼肉食べ放題", count: 1 });
+  });
+  it("ふだんは2〜10個買えるモノから選び、同じ金額なら同じモノ", () => {
+    for (let amount = 60; amount <= 100000; amount += 37) {
+      const eq = pickEquivalent(amount);
+      expect(eq?.count).toBeGreaterThanOrEqual(2);
+      expect(eq?.count).toBeLessThanOrEqual(10);
+      expect(eq!.price * eq!.count).toBeLessThanOrEqual(amount);
+    }
+    expect(pickEquivalent(3000)).toEqual(pickEquivalent(3000));
+  });
+  it("金額が変われば別のモノも出る（牛丼を含む）", () => {
+    const names = new Set<string>();
+    for (let amount = 2500; amount < 3500; amount += 10) names.add(pickEquivalent(amount)!.name);
+    expect(names.size).toBeGreaterThan(5);
+    expect(names.has("牛丼")).toBe(true);
+  });
+  it("高すぎて候補が無いときは、いちばん高いモノを何個分か", () => {
+    expect(pickEquivalent(10_000_000)).toMatchObject({ name: "中古の軽自動車", count: 16 });
   });
 });
