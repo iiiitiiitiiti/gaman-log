@@ -1,0 +1,189 @@
+import { useRef, useState, type ChangeEvent } from "react";
+import { Sheet } from "./Sheet";
+import { DEFAULT_PRESETS, mergeData, newId, parseData, parsePrice, serializeForExport } from "./store";
+import type { AppData, Kind, Preset } from "./types";
+
+const KIND_LABEL: Record<Kind, string> = { saved: "がまん", wasted: "むだづかい" };
+
+function exportFileName(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `gaman-log-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}.json`;
+}
+
+export function SettingsSheet({
+  data,
+  mode,
+  onChange,
+  onClose,
+}: {
+  data: AppData;
+  mode: Kind;
+  onChange: (data: AppData) => void;
+  onClose: () => void;
+}) {
+  const [message, setMessage] = useState("");
+  const [pendingImport, setPendingImport] = useState<AppData | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const presets = data.presets.filter((p) => p.kind === mode);
+
+  const updatePreset = (id: string, patch: Partial<Preset>) =>
+    onChange({ ...data, presets: data.presets.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
+  const removePreset = (id: string) => onChange({ ...data, presets: data.presets.filter((p) => p.id !== id) });
+  const addPreset = () =>
+    onChange({ ...data, presets: [...data.presets, { id: newId(), kind: mode, emoji: "⭐", name: "新しいボタン", price: null }] });
+  const resetPresets = () =>
+    onChange({
+      ...data,
+      presets: [...data.presets.filter((p) => p.kind !== mode), ...DEFAULT_PRESETS.filter((p) => p.kind === mode).map((p) => ({ ...p }))],
+    });
+
+  const exportData = async () => {
+    const text = serializeForExport(data);
+    const name = exportFileName();
+    const file = new File([text], name, { type: "application/json" });
+    // iPhone のホーム画面アプリではダウンロードが不安定なので、共有シート（「ファイルに保存」）を優先する
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: name });
+        setMessage("書き出しました");
+      } catch (e) {
+        if ((e as DOMException).name !== "AbortError") setMessage("共有できませんでした。「コピー」を試してください");
+      }
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMessage("書き出しました");
+  };
+
+  const copyData = async () => {
+    try {
+      await navigator.clipboard.writeText(serializeForExport(data));
+      setMessage("コピーしました。メモアプリなどに貼って保管してください");
+    } catch {
+      setMessage("コピーできませんでした");
+    }
+  };
+
+  const onFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const parsed = parseData(await file.text());
+    if (!parsed) {
+      setMessage("がまんログの書き出しファイルではないため、読み込めませんでした");
+      return;
+    }
+    setPendingImport(parsed);
+  };
+
+  const confirmImport = () => {
+    if (!pendingImport) return;
+    onChange(mergeData(data, pendingImport));
+    setMessage(`${pendingImport.entries.length}件の記録を読み込みました`);
+    setPendingImport(null);
+  };
+
+  return (
+    <Sheet title="設定" onClose={onClose}>
+      <section className="settings-block">
+        <h3>{KIND_LABEL[mode]}の定番ボタン</h3>
+        <p className="settings-hint">金額を空にすると、押したときに毎回金額を聞きます。</p>
+        <ul className="preset-edit">
+          {presets.map((p) => (
+            <PresetRow key={p.id} preset={p} onUpdate={(patch) => updatePreset(p.id, patch)} onRemove={() => removePreset(p.id)} />
+          ))}
+        </ul>
+        <div className="form-actions">
+          <button type="button" className="button button--ghost" onClick={resetPresets}>
+            最初の状態に戻す
+          </button>
+          <button type="button" className="button" onClick={addPreset}>
+            ボタンを追加
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-block">
+        <h3>データの保管と引っ越し</h3>
+        <p className="settings-hint">
+          記録はこの端末の中だけにあります（記録 {data.entries.length}件）。機種変更の前に書き出して、新しい端末で読み込んでください。
+        </p>
+        <div className="form-actions form-actions--wrap">
+          <button type="button" className="button" onClick={exportData}>
+            ファイルに書き出す
+          </button>
+          <button type="button" className="button button--ghost" onClick={copyData}>
+            コピー
+          </button>
+          <button type="button" className="button button--ghost" onClick={() => fileInput.current?.click()}>
+            読み込む
+          </button>
+          <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={onFile} />
+        </div>
+        {pendingImport && (
+          <div className="confirm" role="alert">
+            <p>
+              記録 {pendingImport.entries.length}件・定番ボタン {pendingImport.presets.length}件を、いまのデータに足します。同じ記録は読み込んだほうで上書きします。
+            </p>
+            <div className="form-actions">
+              <button type="button" className="button button--ghost" onClick={() => setPendingImport(null)}>
+                やめる
+              </button>
+              <button type="button" className="button" onClick={confirmImport}>
+                読み込む
+              </button>
+            </div>
+          </div>
+        )}
+        {message && (
+          <p className="settings-message" role="status">
+            {message}
+          </p>
+        )}
+      </section>
+    </Sheet>
+  );
+}
+
+function PresetRow({ preset, onUpdate, onRemove }: { preset: Preset; onUpdate: (patch: Partial<Preset>) => void; onRemove: () => void }) {
+  // 入力途中の値（空・書きかけ）を保てるよう、金額は文字列で持つ
+  const [price, setPrice] = useState(preset.price === null ? "" : String(preset.price));
+  const [invalid, setInvalid] = useState(false);
+
+  const commitPrice = () => {
+    if (price.trim() === "") {
+      setInvalid(false);
+      onUpdate({ price: null });
+      return;
+    }
+    const value = parsePrice(price);
+    setInvalid(value === null);
+    if (value !== null) onUpdate({ price: value });
+  };
+
+  return (
+    <li className="preset-edit-row">
+      <input className="preset-edit-emoji" value={preset.emoji} onChange={(e) => onUpdate({ emoji: e.target.value })} aria-label="絵文字" maxLength={8} />
+      <input className="preset-edit-name" value={preset.name} onChange={(e) => onUpdate({ name: e.target.value })} aria-label="品名" maxLength={40} />
+      <input
+        className={`preset-edit-price${invalid ? " is-invalid" : ""}`}
+        value={price}
+        onChange={(e) => setPrice(e.target.value)}
+        onBlur={commitPrice}
+        inputMode="numeric"
+        placeholder="毎回"
+        aria-label="金額（円）"
+        aria-invalid={invalid}
+      />
+      <button type="button" className="mini mini--danger" onClick={onRemove} aria-label={`${preset.name}を削除`}>
+        ✕
+      </button>
+    </li>
+  );
+}
