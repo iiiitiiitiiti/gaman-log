@@ -3,14 +3,14 @@ import { AmountSheet, type AmountRequest } from "./AmountSheet";
 import { pickEquivalent, yen } from "./equivalents";
 import { History } from "./History";
 import { RecordPop, type PopInfo } from "./RecordPop";
-import { SettingsSheet } from "./SettingsSheet";
+import { SettingsView } from "./SettingsView";
 import { annualPace, balance, PACE_MIN_DAYS, daysSinceFirst, totals } from "./stats";
 import { loadData, newId, saveData } from "./store";
 import type { AppData, Entry, Kind, Preset } from "./types";
 
 const TAPE_TEXT = "むだづかい警報　".repeat(12);
-const THEME_COLOR: Record<Kind, string> = { saved: "#FFE14D", wasted: "#2B0A3D" };
-const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+type Tab = Kind | "settings";
+const THEME_COLOR: Record<Tab, string> = { saved: "#FFE14D", wasted: "#2B0A3D", settings: "#9BE3FF" };
 
 function isStandalone(): boolean {
   const nav = navigator as Navigator & { standalone?: boolean };
@@ -19,17 +19,18 @@ function isStandalone(): boolean {
 
 export function App() {
   const [data, setData] = useState<AppData>(() => loadData());
-  const [mode, setMode] = useState<Kind>("saved");
-  const [wipe, setWipe] = useState<Kind | null>(null);
+  const [tab, setTab] = useState<Tab>("saved");
+  const [wipe, setWipe] = useState<Tab | null>(null);
   const [pop, setPop] = useState<PopInfo | null>(null);
   const [amountRequest, setAmountRequest] = useState<AmountRequest | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [bannerClosed, setBannerClosed] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const [bump, setBump] = useState(0);
   const firstRender = useRef(true);
-
+  const scroller = useRef<HTMLDivElement>(null);
+  // 設定タブでは集計しないが、フックの呼び出し順を保つため直前の記録タブ相当の種類を持つ
+  const mode: Kind = tab === "wasted" ? "wasted" : "saved";
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -46,19 +47,19 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.mode = mode;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[mode]);
-  }, [mode]);
+    document.documentElement.dataset.mode = tab;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOR[tab]);
+  }, [tab]);
 
-  const switchMode = (next: Kind) => {
-    if (next === mode || wipe) return;
-    setBump(0);
-    if (reducedMotion()) {
-      setMode(next);
-      return;
-    }
+  // 端末の「視差効果を減らす」設定に関わらず演出を出す（ユーザー指示 2026-09-24）
+  const switchTab = (next: Tab) => {
+    if (next === tab || wipe) return;
     setWipe(next);
-    window.setTimeout(() => setMode(next), 260);
+    window.setTimeout(() => {
+      setBump(0);
+      setTab(next);
+      scroller.current?.scrollTo({ top: 0 });
+    }, 260);
     window.setTimeout(() => setWipe(null), 620);
   };
 
@@ -68,7 +69,7 @@ export function App() {
     const entries = [...data.entries, entry];
     setData({ ...data, entries });
     setNow(at);
-    if (kind === mode) setBump((n) => n + 1);
+    if (kind === tab) setBump((n) => n + 1);
     const pace = annualPace(entries, kind, at);
     setPop({ entry, total: totals(entries, kind, at).all, pace });
   };
@@ -103,141 +104,176 @@ export function App() {
   const isSaved = mode === "saved";
 
   return (
-    <div className={`app app--${mode}`}>
-      <header className="topbar">
-        <h1 className="logo">
-          <span className="logo-mark" aria-hidden="true">{isSaved ? "🐷" : "🚨"}</span>
-          がまんログ
-        </h1>
-        <button type="button" className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="設定">
-          ⚙︎
-        </button>
-      </header>
+    <div className={tab === "settings" ? "app app--saved app--settings" : `app app--${mode}`}>
+      <div className="scroller" ref={scroller}>
+        <header className="topbar">
+          <h1 className="logo">
+            <span className="logo-mark" aria-hidden="true">
+              {isSaved ? "🐷" : "🚨"}
+            </span>
+            がまんログ
+          </h1>
+        </header>
 
-      {showBanner && (
-        <div className="notice">
-          <p>記録はこの端末の中に保存されます。共有ボタンから「ホーム画面に追加」して、追加したアプリで使ってください。</p>
-          <button type="button" onClick={() => setBannerClosed(true)}>
-            閉じる
-          </button>
-        </div>
-      )}
-      {saveFailed && (
-        <div className="notice notice--error" role="alert">
-          <p>保存できませんでした。プライベートブラウズを解除するか、空き容量を確認してください。</p>
-        </div>
-      )}
-
-      <BalanceStrip value={view.balance} />
-
-      <main className="content">
-        <section key={`${mode}-${bump}`} className={`hero${bump ? " is-bump" : ""}`} aria-label={isSaved ? "今月がまんした金額" : "今月のむだづかい"}>
-          {isSaved ? (
-            <>
-              <div className="sunburst" aria-hidden="true" />
-              <p className="hero-label">今月がまんした</p>
-              <p className="hero-amount">
-                <span className="hero-number" style={{ ["--len" as string]: view.totals.month.toLocaleString("ja-JP").length }}>
-                  {view.totals.month.toLocaleString("ja-JP")}
-                </span>
-                <span className="hero-yen">円</span>
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="caution-tape" aria-hidden="true">
-                <span>{TAPE_TEXT}</span>
-              </div>
-              <p className="hero-label">今月のむだづかい</p>
-              <p className="hero-amount led">
-                <span className="hero-yen">¥</span>
-                <span className="hero-number" style={{ ["--len" as string]: view.totals.month.toLocaleString("ja-JP").length }}>
-                  {view.totals.month.toLocaleString("ja-JP")}
-                </span>
-              </p>
-            </>
-          )}
-          <Equivalent kind={mode} amount={view.totals.month} eq={view.equivalent} />
-          {!isSaved && (
-            <div className="caution-tape caution-tape--bottom" aria-hidden="true">
-              <span>{TAPE_TEXT}</span>
-            </div>
-          )}
-        </section>
-
-        <section className="section" aria-labelledby="presets-title">
-          <h2 id="presets-title" className="section-title">
-            {isSaved ? "なにをがまんした？" : "なにに使っちゃった？"}
-          </h2>
-          <div className="preset-grid">
-            {presets.map((p) => (
-              <button type="button" key={p.id} className="preset" onClick={() => onPreset(p)}>
-                <span className="preset-emoji" aria-hidden="true">{p.emoji || "💰"}</span>
-                <span className="preset-name">{p.name || "名前なし"}</span>
-                <span className="preset-price">{p.price === null ? "金額を入力" : yen(p.price)}</span>
-              </button>
-            ))}
-            <button type="button" className="preset preset--other" onClick={() => setAmountRequest({ kind: mode })}>
-              <span className="preset-emoji" aria-hidden="true">✏️</span>
-              <span className="preset-name">そのほか</span>
-              <span className="preset-price">品名と金額を入力</span>
+        {showBanner && (
+          <div className="notice">
+            <p>記録はこの端末の中に保存されます。共有ボタンから「ホーム画面に追加」して、追加したアプリで使ってください。</p>
+            <button type="button" onClick={() => setBannerClosed(true)}>
+              閉じる
             </button>
           </div>
-        </section>
-
-        <section className="section" aria-labelledby="stats-title">
-          <h2 id="stats-title" className="section-title">
-            {isSaved ? "がまんの記録" : "むだづかいの記録"}
-          </h2>
-          <dl className="stats">
-            <div className="stat">
-              <dt>今日</dt>
-              <dd>{yen(view.totals.today)}</dd>
-            </div>
-            <div className="stat">
-              <dt>今週</dt>
-              <dd>{yen(view.totals.week)}</dd>
-            </div>
-            <div className="stat">
-              <dt>今月</dt>
-              <dd>{yen(view.totals.month)}</dd>
-            </div>
-            <div className="stat">
-              <dt>これまで</dt>
-              <dd>{yen(view.totals.all)}</dd>
-            </div>
-          </dl>
-          <div className="pace">
-            {view.pace === null ? (
-              <p className="pace-wait">
-                記録をつけ始めて{PACE_MIN_DAYS}日たつと、1年続けた場合の金額を出します
-                {view.days > 0 && `（いま${view.days}日目）`}
-              </p>
-            ) : isSaved ? (
-              <p>
-                このペースなら1年で
-                <strong>{yen(view.pace)}</strong>
-                浮きます
-              </p>
-            ) : (
-              <p>
-                このままだと1年で
-                <strong>{yen(view.pace)}</strong>
-                消えます
-              </p>
-            )}
+        )}
+        {saveFailed && (
+          <div className="notice notice--error" role="alert">
+            <p>保存できませんでした。プライベートブラウズを解除するか、空き容量を確認してください。</p>
           </div>
-        </section>
+        )}
 
-        <History kind={mode} entries={data.entries} onDelete={deleteEntry} />
-      </main>
+        {tab === "settings" ? (
+          <main className="content">
+            <SettingsView data={data} onChange={setData} />
+          </main>
+        ) : (
+          <>
+            <BalanceStrip value={view.balance} />
 
-      <nav className="tabbar" aria-label="記録の種類">
-        <button type="button" className="tab tab--saved" aria-current={isSaved ? "page" : undefined} onClick={() => switchMode("saved")}>
+            <main className="content">
+              <section
+                key={`${mode}-${bump}`}
+                className={`hero${bump ? " is-bump" : ""}`}
+                aria-label={isSaved ? "今月がまんした金額" : "今月のむだづかい"}
+              >
+                {isSaved ? (
+                  <>
+                    <div className="sunburst" aria-hidden="true" />
+                    <p className="hero-label">今月がまんした</p>
+                    <p className="hero-amount">
+                      <span className="hero-number" style={{ ["--len" as string]: view.totals.month.toLocaleString("ja-JP").length }}>
+                        {view.totals.month.toLocaleString("ja-JP")}
+                      </span>
+                      <span className="hero-yen">円</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="caution-tape" aria-hidden="true">
+                      <span>{TAPE_TEXT}</span>
+                    </div>
+                    <p className="hero-label">今月のむだづかい</p>
+                    <p className="hero-amount led">
+                      <span className="hero-yen">¥</span>
+                      <span className="hero-number" style={{ ["--len" as string]: view.totals.month.toLocaleString("ja-JP").length }}>
+                        {view.totals.month.toLocaleString("ja-JP")}
+                      </span>
+                    </p>
+                  </>
+                )}
+                <Equivalent kind={mode} amount={view.totals.month} eq={view.equivalent} />
+                {!isSaved && (
+                  <div className="caution-tape caution-tape--bottom" aria-hidden="true">
+                    <span>{TAPE_TEXT}</span>
+                  </div>
+                )}
+              </section>
+
+              <section className="section" aria-labelledby="presets-title">
+                <h2 id="presets-title" className="section-title">
+                  {isSaved ? "なにをがまんした？" : "なにに使っちゃった？"}
+                </h2>
+                <div className="preset-grid">
+                  {presets.map((p) => (
+                    <button type="button" key={p.id} className="preset" onClick={() => onPreset(p)}>
+                      <span className="preset-emoji" aria-hidden="true">
+                        {p.emoji || "💰"}
+                      </span>
+                      <span className="preset-name">{p.name || "名前なし"}</span>
+                      <span className="preset-price">{p.price === null ? "金額を入力" : yen(p.price)}</span>
+                    </button>
+                  ))}
+                  <button type="button" className="preset preset--other" onClick={() => setAmountRequest({ kind: mode })}>
+                    <span className="preset-emoji" aria-hidden="true">
+                      ✏️
+                    </span>
+                    <span className="preset-name">そのほか</span>
+                    <span className="preset-price">品名と金額を入力</span>
+                  </button>
+                </div>
+              </section>
+
+              <section className="section" aria-labelledby="stats-title">
+                <h2 id="stats-title" className="section-title">
+                  {isSaved ? "がまんの記録" : "むだづかいの記録"}
+                </h2>
+                <dl className="stats">
+                  <div className="stat">
+                    <dt>今日</dt>
+                    <dd>{yen(view.totals.today)}</dd>
+                  </div>
+                  <div className="stat">
+                    <dt>今週</dt>
+                    <dd>{yen(view.totals.week)}</dd>
+                  </div>
+                  <div className="stat">
+                    <dt>今月</dt>
+                    <dd>{yen(view.totals.month)}</dd>
+                  </div>
+                  <div className="stat">
+                    <dt>これまで</dt>
+                    <dd>{yen(view.totals.all)}</dd>
+                  </div>
+                </dl>
+                <div className="pace">
+                  {view.pace === null ? (
+                    <p className="pace-wait">
+                      記録をつけ始めて{PACE_MIN_DAYS}日たつと、1年続けた場合の金額を出します
+                      {view.days > 0 && `（いま${view.days}日目）`}
+                    </p>
+                  ) : isSaved ? (
+                    <p>
+                      このペースなら1年で
+                      <strong>{yen(view.pace)}</strong>
+                      浮きます
+                    </p>
+                  ) : (
+                    <p>
+                      このままだと1年で
+                      <strong>{yen(view.pace)}</strong>
+                      消えます
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              <History kind={mode} entries={data.entries} onDelete={deleteEntry} />
+            </main>
+          </>
+        )}
+      </div>
+
+      <nav className="tabbar" aria-label="画面の切り替え">
+        <button
+          type="button"
+          className="tab tab--saved"
+          aria-current={tab === "saved" ? "page" : undefined}
+          onClick={() => switchTab("saved")}
+        >
           <span aria-hidden="true">🐷</span>がまん
         </button>
-        <button type="button" className="tab tab--wasted" aria-current={!isSaved ? "page" : undefined} onClick={() => switchMode("wasted")}>
+        <button
+          type="button"
+          className="tab tab--wasted"
+          aria-current={tab === "wasted" ? "page" : undefined}
+          onClick={() => switchTab("wasted")}
+        >
           <span aria-hidden="true">💸</span>むだづかい
+        </button>
+        <button
+          type="button"
+          className="tab tab--settings"
+          aria-current={tab === "settings" ? "page" : undefined}
+          onClick={() => switchTab("settings")}
+        >
+          <span aria-hidden="true">⚙️</span>設定
         </button>
       </nav>
 
@@ -254,7 +290,6 @@ export function App() {
           }}
         />
       )}
-      {settingsOpen && <SettingsSheet data={data} mode={mode} onChange={setData} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
