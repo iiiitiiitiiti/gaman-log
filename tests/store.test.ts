@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyData, loadData, mergeData, parseData, parsePrice, saveData, serializeForExport, STORAGE_KEY } from "../src/store";
+import { BACKUP_KEY, emptyData, loadData, mergeData, parseData, parsePrice, saveData, serializeForExport, STORAGE_KEY } from "../src/store";
 import { pickEquivalent } from "../src/equivalents";
 import type { AppData } from "../src/types";
 
@@ -38,9 +38,10 @@ describe("loadData / saveData", () => {
     expect(saveData(sample())).toBe(true);
     expect(loadData()).toEqual(sample());
   });
-  it("壊れた保存データは初期データ扱い", () => {
+  it("壊れた保存データは初期データ扱いにし、元データを退避する", () => {
     localStorage.setItem(STORAGE_KEY, "not json");
     expect(loadData().entries).toEqual([]);
+    expect(localStorage.getItem(BACKUP_KEY)).toBe("not json");
   });
   it("書き込み失敗は false", () => {
     const broken = { setItem: () => { throw new Error("quota"); } } as unknown as Storage;

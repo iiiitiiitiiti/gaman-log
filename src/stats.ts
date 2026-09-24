@@ -39,7 +39,7 @@ export interface Totals {
 
 export function totals(entries: Entry[], kind: Kind, now: Date): Totals {
   const list = ofKind(entries, kind);
-  const since = (t: Date) => sum(list.filter((e) => e.createdAt >= t.getTime() && e.createdAt <= now.getTime()));
+  const since = (t: Date) => sum(list.filter((e) => e.createdAt >= t.getTime()));
   return {
     today: since(startOfDay(now)),
     week: since(startOfWeek(now)),
@@ -67,7 +67,7 @@ export function annualPace(entries: Entry[], kind: Kind, now: Date): number | nu
   const windowDays = Math.min(PACE_WINDOW_DAYS, elapsed);
   const today = startOfDay(now);
   const from = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (windowDays - 1));
-  const recent = ofKind(entries, kind).filter((e) => e.createdAt >= from.getTime() && e.createdAt <= now.getTime());
+  const recent = ofKind(entries, kind).filter((e) => e.createdAt >= from.getTime());
   return Math.round((sum(recent) / windowDays) * 365);
 }
 

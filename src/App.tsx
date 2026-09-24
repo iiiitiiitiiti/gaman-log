@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AmountSheet, type AmountRequest } from "./AmountSheet";
 import { pickEquivalent, yen } from "./equivalents";
 import { History } from "./History";
@@ -82,6 +82,8 @@ export function App() {
     setData((d) => ({ ...d, entries: d.entries.filter((e) => e.id !== id) }));
     setPop(null);
   };
+
+  const closePop = useCallback(() => setPop(null), []);
 
   const deleteEntry = (id: string) => setData((d) => ({ ...d, entries: d.entries.filter((e) => e.id !== id) }));
 
@@ -241,7 +243,7 @@ export function App() {
 
       {wipe && <div className={`wipe wipe--${wipe}`} aria-hidden="true" />}
 
-      {pop && <RecordPop info={pop} onClose={() => setPop(null)} onUndo={undo} />}
+      {pop && <RecordPop info={pop} onClose={closePop} onUndo={undo} />}
       {amountRequest && (
         <AmountSheet
           request={amountRequest}
