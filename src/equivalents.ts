@@ -40,12 +40,21 @@ export interface EquivalentResult extends Equivalent {
   count: number;
 }
 
-/** 1個以上買える中でいちばん高いモノを選ぶ。1円も無ければ null */
+const MIN_COUNT = 2;
+const MAX_COUNT = 10;
+
+/**
+ * 金額を身近なモノに置き換える。
+ * 2〜10個買えるモノを候補にし、金額から決まる番号で1つ選ぶ（同じ金額なら同じモノ、金額が変わると入れ替わる）。
+ * 候補が無いとき（少額・高額）は、1個以上買える中でいちばん高いモノ。いちばん安いモノも買えなければ null
+ */
 export function pickEquivalent(amount: number): EquivalentResult | null {
   if (amount < EQUIVALENTS[0].price) return null;
-  let best = EQUIVALENTS[0];
-  for (const eq of EQUIVALENTS) if (eq.price <= amount) best = eq;
-  return { ...best, count: Math.floor(amount / best.price) };
+  const withCount = EQUIVALENTS.map((eq) => ({ ...eq, count: Math.floor(amount / eq.price) }));
+  const candidates = withCount.filter((eq) => eq.count >= MIN_COUNT && eq.count <= MAX_COUNT);
+  if (candidates.length === 0) return withCount.filter((eq) => eq.count >= 1).at(-1) ?? null;
+  const index = (Math.imul(amount, 2654435761) >>> 0) % candidates.length;
+  return candidates[index];
 }
 
 export const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
