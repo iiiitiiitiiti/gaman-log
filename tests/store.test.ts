@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BACKUP_KEY, emptyData, loadData, mergeData, parseData, parsePrice, saveData, serializeForExport, STORAGE_KEY } from "../src/store";
+import { BACKUP_KEY, emptyData, loadData, mergeData, parseData, parseDataDetailed, parsePrice, saveData, serializeForExport, STORAGE_KEY } from "../src/store";
 import { pickEquivalent } from "../src/equivalents";
 import type { AppData } from "../src/types";
 
@@ -46,6 +46,30 @@ describe("loadData / saveData", () => {
   it("書き込み失敗は false", () => {
     const broken = { setItem: () => { throw new Error("quota"); } } as unknown as Storage;
     expect(saveData(emptyData(), broken)).toBe(false);
+  });
+});
+
+describe("重複 id と部分的な破損", () => {
+  it("同じ id は最初の1件だけ残し、捨てた数を返す", () => {
+    const e = sample().entries[0];
+    const raw = JSON.stringify({ ...sample(), entries: [e, { ...e, kind: "wasted", price: 200 }] });
+    const result = parseDataDetailed(raw);
+    expect(result?.data.entries).toEqual([e]);
+    expect(result?.dropped).toBe(1);
+  });
+  it("一部だけ壊れた保存データも元のまま退避する", () => {
+    localStorage.clear();
+    const bad = { id: "b", kind: "saved", name: "x", price: -1, createdAt: 1 };
+    const raw = JSON.stringify({ ...sample(), entries: [...sample().entries, bad] });
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(loadData().entries).toHaveLength(1);
+    expect(localStorage.getItem(BACKUP_KEY)).toBe(raw);
+  });
+  it("壊れていなければ退避しない", () => {
+    localStorage.clear();
+    saveData(sample());
+    loadData();
+    expect(localStorage.getItem(BACKUP_KEY)).toBeNull();
   });
 });
 
