@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
 import { EQUIVALENTS } from "./equivalents";
-import { startOfDay } from "./stats";
+import { goalProgress, startOfDay } from "./stats";
 import { DEFAULT_PRESETS, mergeData, newId, parseData, parsePrice, serializeForExport } from "./store";
-import type { AppData, Equivalent, Kind, Preset } from "./types";
+import type { AppData, Equivalent, Goal, Kind, Preset } from "./types";
 
 const KIND_LABEL: Record<Kind, string> = { saved: "がまん", wasted: "むだづかい" };
 
@@ -19,7 +19,13 @@ function formatDate(ms: number): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-export function SettingsView({ data, onChange }: { data: AppData; onChange: (data: AppData) => void }) {
+/**
+ * 書き換えはすべて onChange(d => ...) の形で、その時点の最新データに対して行う。
+ * 金額欄は画面から消えるときにも確定する（iOS はボタンを押しても入力欄の確定が起きないため）。
+ * そのとき古いデータを丸ごと書き戻すと、消した行や外した目標が戻ってしまうので、
+ * 対象（id・目標・換算表の行）がもう無ければ何もしない。
+ */
+export function SettingsView({ data, onChange }: { data: AppData; onChange: Dispatch<SetStateAction<AppData>> }) {
   const [message, setMessage] = useState("");
   const [pendingImport, setPendingImport] = useState<AppData | null>(null);
   // 取り消せない操作（初期状態に戻す・目標を外す）は、もう一度押してもらってから実行する
@@ -28,38 +34,58 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
   const table = data.equivalents ?? EQUIVALENTS;
 
   const updatePreset = (id: string, patch: Partial<Preset>) =>
-    onChange({ ...data, presets: data.presets.map((p) => (p.id === id ? { ...p, ...patch } : p)) });
-  const removePreset = (id: string) => onChange({ ...data, presets: data.presets.filter((p) => p.id !== id) });
+    onChange((d) => (d.presets.some((p) => p.id === id) ? { ...d, presets: d.presets.map((p) => (p.id === id ? { ...p, ...patch } : p)) } : d));
+  const removePreset = (id: string) => onChange((d) => ({ ...d, presets: d.presets.filter((p) => p.id !== id) }));
   const addPreset = (kind: Kind) =>
-    onChange({ ...data, presets: [...data.presets, { id: newId(), kind, emoji: "⭐", name: "新しいボタン", price: null }] });
+    onChange((d) => ({ ...d, presets: [...d.presets, { id: newId(), kind, emoji: "⭐", name: "新しいボタン", price: null }] }));
   const resetPresets = (kind: Kind) => {
-    onChange({
-      ...data,
-      presets: [...data.presets.filter((p) => p.kind !== kind), ...DEFAULT_PRESETS.filter((p) => p.kind === kind).map((p) => ({ ...p }))],
-    });
+    onChange((d) => ({
+      ...d,
+      presets: [...d.presets.filter((p) => p.kind !== kind), ...DEFAULT_PRESETS.filter((p) => p.kind === kind).map((p) => ({ ...p }))],
+    }));
     setConfirming(null);
   };
   /** 同じ種類のボタンの中で1つ上・下と入れ替える（画面の並び順＝配列の順） */
-  const movePreset = (id: string, delta: -1 | 1) => {
-    const preset = data.presets.find((p) => p.id === id);
-    if (!preset) return;
-    const sameKind = data.presets.map((p, i) => ({ p, i })).filter(({ p }) => p.kind === preset.kind);
-    const pos = sameKind.findIndex(({ p }) => p.id === id);
-    const other = sameKind[pos + delta];
-    if (!other) return;
-    const presets = [...data.presets];
-    [presets[sameKind[pos].i], presets[other.i]] = [presets[other.i], presets[sameKind[pos].i]];
-    onChange({ ...data, presets });
-  };
+  const movePreset = (id: string, delta: -1 | 1) =>
+    onChange((d) => {
+      const preset = d.presets.find((p) => p.id === id);
+      if (!preset) return d;
+      const sameKind = d.presets.map((p, i) => ({ p, i })).filter(({ p }) => p.kind === preset.kind);
+      const pos = sameKind.findIndex(({ p }) => p.id === id);
+      const other = sameKind[pos + delta];
+      if (!other) return d;
+      const presets = [...d.presets];
+      [presets[sameKind[pos].i], presets[other.i]] = [presets[other.i], presets[sameKind[pos].i]];
+      return { ...d, presets };
+    });
 
-  const setEquivalents = (list: Equivalent[]) => onChange({ ...data, equivalents: list });
+  /** 換算表の i 番目を書き換える。行が消えていたら何もしない */
+  const updateEquivalent = (i: number, patch: Partial<Equivalent>) =>
+    onChange((d) => {
+      const list = d.equivalents ?? EQUIVALENTS;
+      if (i >= list.length) return d;
+      return { ...d, equivalents: list.map((x, j) => (j === i ? { ...x, ...patch } : x)) };
+    });
+  const removeEquivalent = (i: number) =>
+    onChange((d) => {
+      const list = d.equivalents ?? EQUIVALENTS;
+      // 全部消すと「既定の表」に戻ってしまうので、最後の1件は残す
+      if (list.length <= 1) return d;
+      return { ...d, equivalents: list.filter((_, j) => j !== i) };
+    });
+  const addEquivalent = () =>
+    onChange((d) => ({ ...d, equivalents: [...(d.equivalents ?? EQUIVALENTS), { emoji: "⭐", name: "新しい品目", unit: "個", price: 1000 }] }));
   const resetEquivalents = () => {
-    const { equivalents: _, ...rest } = data;
-    onChange(rest);
+    onChange((d) => {
+      const { equivalents: _, ...rest } = d;
+      return rest;
+    });
     setConfirming(null);
   };
 
-  const markExported = () => onChange({ ...data, lastExportAt: Date.now() });
+  const updateGoal = (patch: Partial<Goal>) => onChange((d) => (d.goal ? { ...d, goal: { ...d.goal, ...patch } } : d));
+
+  const markExported = () => onChange((d) => ({ ...d, lastExportAt: Date.now() }));
 
   const exportData = async () => {
     const text = serializeForExport(data);
@@ -111,12 +137,13 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
 
   const confirmImport = () => {
     if (!pendingImport) return;
-    onChange(mergeData(data, pendingImport));
+    onChange((d) => mergeData(d, pendingImport));
     setMessage(`${pendingImport.entries.length}件の記録を読み込みました`);
     setPendingImport(null);
   };
 
   const goal = data.goal ?? null;
+  const goalDone = goal !== null && goalProgress(data.entries, goal, new Date()) >= goal.price;
 
   return (
     <>
@@ -126,30 +153,41 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
         <h3>がまんの目標</h3>
         {goal ? (
           <>
-            <p className="settings-hint">{formatDate(goal.startAt)} からのがまん額でたまります。</p>
+            <p className="settings-hint">
+              {goalDone
+                ? "🎉 達成しました！ 名前と金額を次のほしいものに書き換えて、「今日から数え直す」を押してください。"
+                : `${formatDate(goal.startAt)} からのがまん額でたまります。`}
+            </p>
             <div className="goal-edit">
               <input
                 className="preset-edit-emoji"
                 value={goal.emoji}
-                onChange={(e) => onChange({ ...data, goal: { ...goal, emoji: e.target.value } })}
+                onChange={(e) => updateGoal({ emoji: e.target.value })}
                 aria-label="目標の絵文字"
                 maxLength={16}
               />
               <input
                 className="goal-edit-name"
                 value={goal.name}
-                onChange={(e) => onChange({ ...data, goal: { ...goal, name: e.target.value } })}
+                onChange={(e) => updateGoal({ name: e.target.value })}
                 aria-label="目標の名前"
                 maxLength={40}
               />
               <PriceInput
                 className="goal-edit-price"
                 value={goal.price}
-                onCommit={(price) => price !== null && onChange({ ...data, goal: { ...goal, price } })}
+                onCommit={(price) => price !== null && updateGoal({ price })}
                 label="目標の金額（円）"
               />
             </div>
-            <div className="form-actions">
+            <div className="form-actions form-actions--wrap">
+              <button
+                type="button"
+                className={goalDone ? "button" : "button button--ghost"}
+                onClick={() => updateGoal({ startAt: startOfDay(new Date()).getTime() })}
+              >
+                今日から数え直す
+              </button>
               <ConfirmButton
                 id="goal-clear"
                 confirming={confirming}
@@ -157,7 +195,7 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
                 label="目標を外す"
                 confirmLabel="本当に外す"
                 onConfirm={() => {
-                  onChange({ ...data, goal: null });
+                  onChange((d) => ({ ...d, goal: null }));
                   setConfirming(null);
                 }}
               />
@@ -170,7 +208,9 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
               <button
                 type="button"
                 className="button"
-                onClick={() => onChange({ ...data, goal: { name: "ほしいもの", emoji: "🎁", price: 30000, startAt: startOfDay(new Date()).getTime() } })}
+                onClick={() =>
+                  onChange((d) => ({ ...d, goal: { name: "ほしいもの", emoji: "🎁", price: 30000, startAt: startOfDay(new Date()).getTime() } }))
+                }
               >
                 目標を決める
               </button>
@@ -187,7 +227,7 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
           value={data.wasteLimit ?? null}
           allowEmpty
           placeholder="上限なし"
-          onCommit={(price) => onChange({ ...data, wasteLimit: price })}
+          onCommit={(price) => onChange((d) => ({ ...d, wasteLimit: price }))}
           label="月の上限（円）"
         />
       </section>
@@ -211,7 +251,7 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
                 />
               ))}
           </ul>
-          <div className="form-actions">
+          <div className="form-actions form-actions--wrap">
             <ConfirmButton
               id={`presets-${kind}`}
               confirming={confirming}
@@ -235,12 +275,13 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
             <EquivalentRow
               key={i}
               eq={eq}
-              onUpdate={(patch) => setEquivalents(table.map((x, j) => (j === i ? { ...x, ...patch } : x)))}
-              onRemove={() => setEquivalents(table.filter((_, j) => j !== i))}
+              removable={table.length > 1}
+              onUpdate={(patch) => updateEquivalent(i, patch)}
+              onRemove={() => removeEquivalent(i)}
             />
           ))}
         </ul>
-        <div className="form-actions">
+        <div className="form-actions form-actions--wrap">
           <ConfirmButton
             id="equivalents"
             confirming={confirming}
@@ -252,14 +293,14 @@ export function SettingsView({ data, onChange }: { data: AppData; onChange: (dat
           <button
             type="button"
             className="button"
-            onClick={() => setEquivalents([...table, { emoji: "⭐", name: "新しい品目", unit: "個", price: 1000 }])}
+            onClick={addEquivalent}
           >
             品目を追加
           </button>
         </div>
       </section>
 
-      <section className="settings-block">
+      <section className="settings-block" id="export">
         <h3>データの保管と引っ越し</h3>
         <p className="settings-hint">
           記録はこの端末の中だけにあります（記録 {data.entries.length}件
@@ -465,7 +506,17 @@ function PresetRow({
   );
 }
 
-function EquivalentRow({ eq, onUpdate, onRemove }: { eq: Equivalent; onUpdate: (patch: Partial<Equivalent>) => void; onRemove: () => void }) {
+function EquivalentRow({
+  eq,
+  removable,
+  onUpdate,
+  onRemove,
+}: {
+  eq: Equivalent;
+  removable: boolean;
+  onUpdate: (patch: Partial<Equivalent>) => void;
+  onRemove: () => void;
+}) {
   return (
     <li className="preset-edit-row eq-edit-row">
       <input className="preset-edit-emoji" value={eq.emoji} onChange={(e) => onUpdate({ emoji: e.target.value })} aria-label="絵文字" maxLength={16} />
@@ -481,7 +532,13 @@ function EquivalentRow({ eq, onUpdate, onRemove }: { eq: Equivalent; onUpdate: (
         <span aria-hidden="true">円 ／ 1</span>
         <input className="eq-edit-unit" value={eq.unit} onChange={(e) => onUpdate({ unit: e.target.value })} aria-label="数え方" maxLength={4} />
       </span>
-      <button type="button" className="mini mini--danger preset-edit-del" onClick={onRemove} aria-label={`${eq.name}を削除`}>
+      <button
+        type="button"
+        className="mini mini--danger preset-edit-del"
+        onClick={onRemove}
+        disabled={!removable}
+        aria-label={`${eq.name}を削除`}
+      >
         ✕
       </button>
     </li>
