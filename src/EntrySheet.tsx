@@ -52,7 +52,7 @@ export function EntrySheet({ entry, onCancel, onSave }: { entry: Entry; onCancel
   };
 
   return (
-    <Sheet title="記録を直す" onClose={onCancel}>
+    <Sheet title="記録を直す" onClose={onCancel} placement="center">
       <form className="form" onSubmit={submit} noValidate>
         <div className="field-row">
           <label className="field field--emoji">

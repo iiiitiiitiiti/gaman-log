@@ -1053,6 +1053,29 @@ button {
   border-color: var(--caution);
   border-radius: 6px 6px 0 0;
 }
+/* 画面中央に出るモーダル（背景は実際に見えている範囲に合わせてあるので、キーボードが出てもその上の中央に来る） */
+.sheet-backdrop--center {
+  align-items: center;
+  padding: 16px;
+}
+.sheet--center {
+  max-height: 100%;
+  padding-bottom: 20px;
+  border-bottom: var(--line);
+  border-radius: 26px;
+  box-shadow: 6px 6px 0 var(--ink);
+  animation: modal-in 0.28s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+.sheet--center .form-actions .button {
+  flex: 1;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.app--wasted .sheet--center {
+  border-bottom: 3px solid var(--caution);
+  border-radius: 6px;
+  box-shadow: 6px 6px 0 var(--red);
+}
 .sheet-head {
   display: flex;
   align-items: center;
@@ -1317,6 +1340,12 @@ button {
 }
 @keyframes fade-in {
   from {
+    opacity: 0;
+  }
+}
+@keyframes modal-in {
+  from {
+    transform: scale(0.85);
     opacity: 0;
   }
 }
@@ -1753,6 +1782,9 @@ button {
   display: block;
   width: 100%;
   max-width: 360px;
+  /* 縦長の画像なので、中央のモーダルに収まるよう高さも抑える */
+  max-height: calc(100dvh - 240px);
+  object-fit: contain;
   margin: 0 auto 16px;
   border: var(--line);
   border-radius: var(--radius-s);

@@ -12,13 +12,23 @@ function visibleBox(): VisibleBox | null {
 }
 
 /**
- * 下からせり上がる入力パネル。背景タップと Esc で閉じる。
+ * 入力パネル。placement="bottom" は下からせり上がり、"center" は画面中央に出るモーダル。背景タップと Esc で閉じる。
  *
  * iPhone はキーボードが出ても画面（レイアウト）の高さを縮めないので、画面の下端に置くとパネルがキーボードの裏に隠れる。
  * このアプリは画面全体を固定しているため、隠れた入力欄を iPhone が自動で見える位置へ動かすこともできない。
  * そこで背景を visualViewport（実際に見えている範囲）に合わせ、パネルがキーボードのすぐ上に来るようにする。
  */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({
+  title,
+  onClose,
+  children,
+  placement = "bottom",
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  placement?: "bottom" | "center";
+}) {
   const panel = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<VisibleBox | null>(visibleBox);
 
@@ -55,11 +65,11 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
 
   return (
     <div
-      className="sheet-backdrop"
+      className={`sheet-backdrop sheet-backdrop--${placement}`}
       style={box ? { top: box.top, height: box.height, bottom: "auto" } : undefined}
       onClick={onClose}
     >
-      <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+      <div ref={panel} className={`sheet sheet--${placement}`} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-head">
           <h2 className="sheet-title">{title}</h2>
           <button type="button" className="icon-button" onClick={onClose} aria-label="閉じる">

@@ -116,7 +116,7 @@ export function ReviewView({ data, table, now }: { data: AppData; table: Equival
       </section>
 
       {brag && (
-        <Sheet title="自慢画像" onClose={() => setBrag(null)}>
+        <Sheet title="自慢画像" onClose={() => setBrag(null)} placement="center">
           <img className="brag-preview" src={brag.url} alt={`${month + 1}月に${yen(summary.saved)}がまんした画像`} />
           <div className="form-actions">
             <button type="button" className="button button--ghost" onClick={() => setBrag(null)}>
