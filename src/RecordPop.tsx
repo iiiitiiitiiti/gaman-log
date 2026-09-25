@@ -90,7 +90,7 @@ export function RecordPop({
         <p className="pop-item">
           <span aria-hidden="true">{entry.emoji || "💰"}</span> {entry.name}
         </p>
-        <p id="pop-title" className="pop-amount">
+        <p id="pop-title" className="pop-amount" style={{ ["--len" as string]: yen(entry.price).length }}>
           {saved ? "+" : "−"}
           {yen(entry.price)}
         </p>
