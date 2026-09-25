@@ -50,7 +50,7 @@ export function AmountSheet({
         {!preset && (
           <label className="field">
             <span>品名</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="例：新作のフラペチーノ" autoFocus />
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={40} placeholder="例：新作のフラペチーノ" data-autofocus />
           </label>
         )}
         <label className="field">
@@ -60,7 +60,7 @@ export function AmountSheet({
             onChange={(e) => setPrice(e.target.value)}
             inputMode="numeric"
             placeholder="例：680"
-            autoFocus={Boolean(preset)}
+            data-autofocus={preset ? "" : undefined}
           />
         </label>
         {error && (
