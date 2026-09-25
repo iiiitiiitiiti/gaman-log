@@ -45,7 +45,7 @@ export function AmountSheet({
       : "なにに使っちゃった？";
 
   return (
-    <Sheet title={title} onClose={onCancel}>
+    <Sheet title={title} onClose={onCancel} placement="center">
       <form className="form" onSubmit={submit} noValidate>
         {!preset && (
           <label className="field">
