@@ -1073,8 +1073,26 @@ button {
 }
 .field {
   display: grid;
+  /* 既定の列幅だと、中身の幅（日時の入力欄など）に合わせて列が広がる */
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
+  min-width: 0;
   font-weight: 800;
+}
+/*
+ * iPhone の Safari は日付・日時の入力欄を独自の見た目で描き、表示中の文字の幅を最低の幅にするため、
+ * width: 100% を指定しても画面からはみ出す。独自の見た目を外し、最低の幅を 0 にする。
+ */
+.field input[type="datetime-local"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+}
+.field input[type="datetime-local"]::-webkit-date-and-time-value {
+  text-align: left;
 }
 .field input,
 .preset-edit input {
