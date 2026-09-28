@@ -292,7 +292,9 @@ export function App() {
               >
                 {isSaved ? (
                   <>
-                    <div className="sunburst" aria-hidden="true" />
+                    <div className="sunburst-clip" aria-hidden="true">
+                      <div className="sunburst" />
+                    </div>
                     <p className="hero-label">今月がまんした</p>
                     <p className="hero-amount">
                       <span className="hero-number" style={{ ["--len" as string]: view.totals.month.toLocaleString("ja-JP").length }}>
