@@ -774,8 +774,10 @@ button {
 
 /* ---------- 履歴 ---------- */
 
+/* 列を minmax(0, 1fr) にしないと、行の最小幅が省略前の品名の全幅になり、画面が横に広がる */
 .history {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin: 0;
   padding: 0;
