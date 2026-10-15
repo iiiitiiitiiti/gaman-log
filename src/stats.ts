@@ -1,4 +1,4 @@
-import type { AppData, Entry, Goal, Kind } from "./types";
+import type { AppData, Entry, Goal, Kind, Preset } from "./types";
 
 const DAY = 24 * 60 * 60 * 1000;
 /** 年間ペースを出すのに必要な、最初の記録からの日数 */
@@ -151,6 +151,26 @@ export function monthRanking(entries: Entry[], kind: Kind, year: number, month: 
     map.set(e.name, item);
   }
   return [...map.values()].sort((a, b) => b.total - a.total || b.count - a.count).slice(0, top);
+}
+
+export const RECENT_MAX = 6;
+
+/**
+ * 最近記録した品目（新しい順）。同じ品名・絵文字・金額は1つにまとめ、
+ * 値段つきの定番ボタンと同じものは、すでにボタンがあるので出さない
+ */
+export function recentItems(entries: Entry[], kind: Kind, presets: Preset[], now: Date, max = RECENT_MAX): Entry[] {
+  const keyOf = (name: string, emoji: string, price: number) => JSON.stringify([name, emoji, price]);
+  const seen = new Set(presets.filter((p) => p.kind === kind && p.price !== null).map((p) => keyOf(p.name || "名前なし", p.emoji, p.price as number)));
+  const items: Entry[] = [];
+  for (const e of ofKind(notFuture(entries, now), kind).sort((a, b) => b.createdAt - a.createdAt)) {
+    const key = keyOf(e.name, e.emoji, e.price);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(e);
+    if (items.length >= max) break;
+  }
+  return items;
 }
 
 /** 書き出しを勧める間隔 */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { annualPace, balance, daysSinceFirst, exportDue, goalProgress, monthRanking, recentMonths, saveStreak, startOfWeek, totals } from "../src/stats";
-import type { Entry, Kind } from "../src/types";
+import { annualPace, balance, daysSinceFirst, exportDue, goalProgress, monthRanking, recentItems, recentMonths, saveStreak, startOfWeek, totals } from "../src/stats";
+import type { Entry, Kind, Preset } from "../src/types";
 
 let seq = 0;
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime();
@@ -165,5 +165,42 @@ describe("exportDue", () => {
   });
   it("書き出してから30日たつまでは勧めない", () => {
     expect(exportDue({ ...base, entries: [entry("saved", 1, at(2026, 1, 1))], lastExportAt: at(2026, 9, 1) }, now)).toBe(false);
+  });
+});
+
+describe("recentItems", () => {
+  const now = new Date(2026, 9, 15, 20);
+  const item = (kind: Kind, name: string, price: number, createdAt: number, emoji = "✨"): Entry => ({ ...entry(kind, price, createdAt), name, emoji });
+  it("新しい順に、同じ品名・絵文字・金額は1つにまとめる", () => {
+    const l = [item("saved", "雑誌", 900, at(2026, 10, 1)), item("saved", "ラテ", 680, at(2026, 10, 2)), item("saved", "雑誌", 900, at(2026, 10, 3))];
+    expect(recentItems(l, "saved", [], now).map((e) => [e.name, e.createdAt])).toEqual([["雑誌", at(2026, 10, 3)], ["ラテ", at(2026, 10, 2)]]);
+  });
+  it("品名が同じでも金額か絵文字がちがえば別にする", () => {
+    const l = [item("saved", "雑誌", 900, at(2026, 10, 1)), item("saved", "雑誌", 700, at(2026, 10, 2)), item("saved", "雑誌", 700, at(2026, 10, 3), "📕")];
+    expect(recentItems(l, "saved", [], now)).toHaveLength(3);
+  });
+  it("値段つきの定番と同じものは出さず、値段なしの定番から入れたものは出す", () => {
+    const presets: Preset[] = [
+      { id: "p1", kind: "saved", name: "水", emoji: "🧃", price: 160 },
+      { id: "p2", kind: "wasted", name: "衝動買い", emoji: "🛍️", price: null },
+    ];
+    const l = [
+      item("saved", "水", 160, at(2026, 10, 1), "🧃"),
+      item("saved", "水", 200, at(2026, 10, 2), "🧃"),
+      item("wasted", "衝動買い", 3000, at(2026, 10, 3), "🛍️"),
+    ];
+    expect(recentItems(l, "saved", presets, now).map((e) => e.price)).toEqual([200]);
+    expect(recentItems(l, "wasted", presets, now).map((e) => e.price)).toEqual([3000]);
+  });
+  it("名前が空の定番は「名前なし」で記録されるので、それも定番と同じものとして出さない", () => {
+    const presets: Preset[] = [{ id: "p1", kind: "saved", name: "", emoji: "🧃", price: 160 }];
+    expect(recentItems([item("saved", "名前なし", 160, at(2026, 10, 1), "🧃")], "saved", presets, now)).toEqual([]);
+  });
+  it("ほかの種類と未来の日時の記録は入れず、上限の数で切る", () => {
+    const l = [item("wasted", "a", 1, at(2026, 10, 1)), item("saved", "未来", 1, at(2026, 10, 16))];
+    for (let i = 0; i < 8; i++) l.push(item("saved", `品${i}`, 100, at(2026, 10, 1 + i)));
+    const r = recentItems(l, "saved", [], now);
+    expect(r).toHaveLength(6);
+    expect(r[0].name).toBe("品7");
   });
 });

@@ -6,7 +6,7 @@ import { History } from "./History";
 import { RecordPop, type PopInfo } from "./RecordPop";
 import { ReviewView } from "./ReviewView";
 import { SettingsView } from "./SettingsView";
-import { annualPace, balance, daysSinceFirst, exportDue, goalProgress, PACE_MIN_DAYS, saveStreak, totals } from "./stats";
+import { annualPace, balance, daysSinceFirst, exportDue, goalProgress, PACE_MIN_DAYS, recentItems, saveStreak, totals } from "./stats";
 import { BACKUP_KEY, loadData, newId, saveData } from "./store";
 import type { AppData, Entry, Goal, Kind, Preset } from "./types";
 
@@ -170,8 +170,9 @@ export function App() {
       equivalent: pickEquivalent(t.month, table),
       streak: saveStreak(data.entries, now),
       goal: data.goal ? { goal: data.goal, progress: goalProgress(data.entries, data.goal, now) } : null,
+      recent: recentItems(data.entries, mode, data.presets, now),
     };
-  }, [data.entries, data.goal, mode, now, table]);
+  }, [data.entries, data.goal, data.presets, mode, now, table]);
 
   const presets = data.presets.filter((p) => p.kind === mode);
   const showBanner = !bannerClosed && !isStandalone() && /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -353,6 +354,27 @@ export function App() {
                     <span className="preset-price">品名と金額を入力</span>
                   </button>
                 </div>
+                {view.recent.length > 0 && (
+                  <>
+                    <h3 className="recent-title">最近の記録</h3>
+                    <ul className="recent">
+                      {view.recent.map((e) => (
+                        <li key={e.id}>
+                          <button
+                            type="button"
+                            className="recent-item"
+                            onClick={() => record(e.kind, e.name, e.emoji, e.price, e.presetId)}
+                            aria-label={`${e.name} ${yen(e.price)}をもう一度記録する`}
+                          >
+                            <span aria-hidden="true">{e.emoji || "💰"}</span>
+                            <span className="recent-name">{e.name}</span>
+                            <span className="recent-price">{yen(e.price)}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </section>
 
               <section className="section" aria-labelledby="stats-title">

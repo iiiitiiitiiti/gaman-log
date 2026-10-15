@@ -227,6 +227,7 @@ button {
 
 /* 押した手応え（iOS 用に data-pressed も同じ扱い） */
 .preset,
+.recent-item,
 .button,
 .icon-button,
 .tab,
@@ -234,6 +235,11 @@ button {
   transition:
     transform 0.08s ease-out,
     box-shadow 0.08s ease-out;
+}
+.recent-item:active,
+.recent-item[data-pressed] {
+  transform: translate(3px, 3px) !important;
+  box-shadow: none !important;
 }
 .preset:active,
 .preset[data-pressed],
@@ -637,6 +643,61 @@ button {
   background: transparent !important;
   color: var(--caution);
   border: 3px dashed var(--caution);
+}
+
+/* 最近の記録 */
+.recent-title {
+  margin: 26px 0 10px;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.recent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recent li {
+  min-width: 0;
+  max-width: 100%;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 3px 3px 0 var(--ink);
+  font-weight: 800;
+}
+.recent-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-price {
+  flex-shrink: 0;
+  font-size: 0.8rem;
+}
+.app--wasted .recent-title {
+  color: var(--caution);
+}
+.app--wasted .recent-item {
+  border: 2px solid var(--caution);
+  border-radius: var(--radius-s);
+  box-shadow: 3px 3px 0 var(--red);
+}
+.app--wasted .recent-price {
+  font-family: var(--font-led);
+  color: var(--red);
 }
 
 /* ---------- 集計 ---------- */
