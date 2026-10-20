@@ -38,6 +38,8 @@ npm run dev -- --host  # 同じ Wi-Fi の iPhone から開いて確認する
 
 `main` へ push すると GitHub Actions が型チェック・テスト・ビルドを通してから GitHub Pages へ公開します。
 
+Claude Code でこのフォルダを開くと、作業を終える前に `npm test` と `npm run build` が自動で流れます。落ちたら直すまで終わりません（`.claude/hooks/stop-verify.sh`・[008](docs/decisions/008-stop-verify-hook.md)）。
+
 ## ファイル構成
 
 | ファイル | 役割 |
